@@ -37,7 +37,7 @@ assert(html.includes('Not a /'), 'Misaligned network boundary must be explained'
 assert(html.includes('Did you mean '), 'Network boundary error must suggest correct CIDR');
 assert(html.includes('aria-invalid'), 'Invalid CIDR must be announced accessibly');
 assert(html.includes('Caffoot Lite supports subnet sizes /23 through /30.'), 'Unsupported prefix must be explained');
-assert(html.includes("if (!subnet) suggestSubnetGateway();"), 'New subnet modal must initialize gateway suggestion');
+assert(html.includes("if (!subnet && subnetTypeSelect.value === 'network') suggestSubnetGateway();"), 'New network subnet modal must initialize gateway suggestion without treating IP Address Blocks as networks');
 assert(html.includes("form.dataset.subnetId"), 'Existing subnet gateways must not be automatically replaced');
 assert(html.includes('function phase11CPlan('), 'IPAM repair planner must remain');
 assert(html.includes('...phase19BSoftwareFields()'), 'computer software options must be rendered');
@@ -101,6 +101,12 @@ const ipamContext = {
 };
 vm.createContext(ipamContext);
 vm.runInContext(html.slice(helperStart, helperEnd), ipamContext);
+// Load the production gateway lookup into this isolated device/IPAM test context.
+const ipamGatewayHelperStart = html.indexOf('function phase10GatewaySubnet(');
+const ipamGatewayHelperEnd = html.indexOf('function phase10SubnetSummary(', ipamGatewayHelperStart);
+assert(ipamGatewayHelperStart >= 0 && ipamGatewayHelperEnd > ipamGatewayHelperStart, 'gateway protection helper must exist');
+ipamContext.phase12Usable = ipamContext.ipBelongsToSubnet;
+vm.runInContext(html.slice(ipamGatewayHelperStart, ipamGatewayHelperEnd), ipamContext);
 const { appState: state } = ipamContext;
 const a = { id: 'test-a', name: 'server-a', notes: 'Original notes', primaryIp: '', ipReserved: false };
 const b = { id: 'test-b', name: 'server-b', notes: '', primaryIp: '', ipReserved: false };
@@ -127,6 +133,16 @@ ipamContext.syncDeviceIpamRecord(a);
 assert.equal(state.ipAllocations['192.168.40.11'].status, 'Reserved', 'reservation flag sync');
 ipamContext.setDevicePrimaryIp(a, '');
 assert.equal(state.ipAllocations['192.168.40.11'], undefined, 'clearing primary IP releases allocation');
+state.subnets[0].gateway = '192.168.40.1';
+const server = {id:'gateway-server',name:'server',type:'Server - Physical',primaryIp:'',ipReserved:false};
+const firewall = {id:'gateway-firewall',name:'firewall',type:'Firewall',primaryIp:'',ipReserved:false};
+state.devices.push(server,firewall);
+assert.throws(() => ipamContext.setDevicePrimaryIp(server,'192.168.40.1'), /may only be assigned/, 'server must not newly claim gateway');
+assert.equal(server.primaryIp,'', 'blocked gateway assignment must not mutate device');
+ipamContext.setDevicePrimaryIp(firewall,'192.168.40.1');
+assert.equal(firewall.primaryIp,'192.168.40.1','firewall may own gateway');
+assert.throws(() => ipamContext.setDevicePrimaryIp(server,'192.168.40.1'), /already assigned/, 'gateway cannot be assigned twice');
+console.log('Gateway device assignment fixtures passed.');
 console.log('Device/IPAM runtime fixtures passed.');
 
 const rackValidatorStart = html.indexOf('function validateRackPlacement(');
@@ -222,7 +238,8 @@ const ipPickerSource = fs.readFileSync(path.join(__dirname, 'caffoot-lite.html')
 assert(ipPickerSource.includes('id="dev-ip-available"'), 'Device form must expose a Safari-compatible IP dropdown');
 assert(ipPickerSource.includes("case 'device-ip-select':"), 'Device IP dropdown must be handled on change');
 assert(ipPickerSource.includes('if (available.length < 50) available.push(ip)'), 'IP dropdown must cap rendered choices');
-assert(ipPickerSource.includes('if (ip === subnet.gateway) continue;'), 'IP dropdown must exclude gateway');
+assert(ipPickerSource.includes('if (ip === subnet.gateway && ip !== currentIp) continue;'), 'IP dropdown must exclude gateway except when showing the current address');
+assert(ipPickerSource.includes("appState.devices.some(d => d.id === editingId && d.primaryIp === ip)"), 'Existing gateway address must only be retained for its owning device');
 
 assert(html.includes("case 'phase16a-check-safety': phase16ACheckSafety(); break;"), 'Inventory safety check must be wired');
 assert(html.includes('function phase16ACheckSafety()'), 'Inventory safety check must remain');

@@ -12,7 +12,11 @@ assert.equal(JSON.stringify(context.appState),before,'Preview must not replace a
 assert.equal(candidate.devices.length,2);assert.equal(candidate.rackAccessories.length,1);assert.equal(candidate.ipAllocations['192.168.40.20'].reservedForDeviceId,'example-server');
 assert.equal(candidate.devices[0].typeDetails.legacyExampleFlag,true);
 const roundtrip=context.phase16CCheckBackup(JSON.parse(JSON.stringify(context.phase20CreateBackup(candidate))));
-for(const key of Object.keys(raw).filter(k=>k!=='caffootBackup'))assert.equal(JSON.stringify(roundtrip[key]),JSON.stringify(raw[key]),key+' must survive export/import');
+for(const key of Object.keys(raw).filter(k=>!['caffootBackup','deviceTypes'].includes(k)))assert.equal(JSON.stringify(roundtrip[key]),JSON.stringify(raw[key]),key+' must survive export/import');
+// Migration may append newly supported built-in device types, but must preserve every original type and its order.
+assert.deepEqual(Array.from(roundtrip.deviceTypes.slice(0,raw.deviceTypes.length)),raw.deviceTypes,'original device types must survive export/import in order');
+assert(roundtrip.deviceTypes.includes('Layer 3 Switch'),'migration must retain the new Layer 3 Switch type');
+assert.equal(new Set(roundtrip.deviceTypes).size,roundtrip.deviceTypes.length,'device types must not be duplicated');
 const legacy=read('lite-legacy.example.json'),legacyBytes=JSON.stringify(legacy);
 const migrated=context.phase16CCheckBackup(legacy);
 assert.equal(migrated.devices[1].location,'Unknown');assert(migrated.deviceTypes.includes('Server - Physical'));assert.equal(JSON.stringify(legacy),legacyBytes);

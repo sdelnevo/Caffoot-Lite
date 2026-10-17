@@ -201,3 +201,17 @@ Owner opened the latest preview in Safari, reported that the new warning looks g
 The owner explicitly approved making `sdelnevo/Caffoot-Lite` public and publishing Caffoot Lite v1.0.0 with the prepared downloads. The owner changed repository visibility to public. The final stable source commit `6f5d38e6959016fb236763f8f7a241de14d23c83` passed the complete automated suite in [workflow 38064002992](https://github.com/sdelnevo/Caffoot-Lite/actions/runs/38064002992). [Publication workflow 38065143351](https://github.com/sdelnevo/Caffoot-Lite/actions/runs/38065143351) verified that exact artifact, finalised release-note wording without changing runnable HTML, checked package member hashes and uploaded asset digests, then published the stable release.
 
 [Caffoot Lite v1.0.0](https://github.com/sdelnevo/Caffoot-Lite/releases/tag/v1.0.0) includes `Caffoot-Lite-1.0.0.zip`, `Caffoot-Lite.html` and `SHA256SUMS`. The tag points to the tested source commit. Earlier private-preparation results below are retained as historical evidence.
+
+
+## v1.1 design decision — VLAN scope (implementation in progress)
+
+**Status:** Scoped VLAN validation helper and regression tests pass locally; application integration is **not yet complete**.
+
+- Each parent **IP Address Block** is an independent VLAN domain. A VLAN number may be reused in different blocks.
+- Within a single block, a VLAN number must be unique among Network / VLAN subnets.
+- Legacy networks without a parent share one **Unassigned VLAN Domain** and must not duplicate VLAN numbers there.
+- VLAN scope is based on stable parent block IDs, not editable block names.
+- CIDR overlap, hierarchy, gateway and data-integrity protections remain independent of VLAN scope.
+- The current separate `vlans` inventory and backup/import validators assume globally unique VLAN numbers. Before enabling reuse in the UI, update these together so same-number VLAN records in different domains remain distinct, without silently rewriting existing inventories.
+- Regression coverage must include create/edit, cross-block reuse, within-block duplicates, unassigned networks, VLAN deletion, backup/import and legacy data.
+
